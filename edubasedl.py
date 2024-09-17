@@ -1,128 +1,169 @@
 import io
+import re
 import os
 import asyncio
 import argparse
 from pypdf import PdfMerger, PdfReader
-from pyppeteer import launch
+from playwright.async_api import async_playwright
 
-# every accoutbn has five default books
-default_docs = ["12849", "5317", "59767", "58311", "58216"]
+# regex to extract the book IDs
+re_book_href = re.compile(r"#doc/(\d+)")
+# user agent for the headless browser
+user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6567.90 Safari/537.36"
 
 
-async def download_book(page, doc_id):
-    file_name = f"{doc_id}.pdf"
+async def download_book(page, book_id):
+    file_name = f"{book_id}.pdf"
     try:
         # skip if pdf exists
         if os.path.exists(file_name):
             print(f"[-] {file_name} already exists, skipping")
             return
+
         pdf = PdfMerger()
+
         # open the book and use js to get the maximum pages
         await page.goto(
-            f"https://app.edubase.ch/#doc/{doc_id}/1", {"waitUntil": "networkidle0"}
+            f"https://app.edubase.ch/#doc/{book_id}/1", wait_until="networkidle"
         )
         await asyncio.sleep(1)
+
         max_pages_raw = await page.evaluate(
-            'new Array(...document.querySelector("#pagination").getElementsByTagName("span")).filter(span => span.textContent.includes("/ "))[0].innerHTML',
-            force_expr=True,
+            """() => {
+            return Array.from(document.querySelector("#pagination").getElementsByTagName("span"))
+                .filter(span => span.textContent.includes("/ "))[0].innerHTML;
+        }"""
         )
+
         # remove the slash + whitespace
         max_pages = int(max_pages_raw.replace("/ ", ""))
+
         # download each page into memory
         for i in range(1, max_pages + 1):
-            print(f"[*] Downloading page {i}/{max_pages} of book '{doc_id}'")
+            print(f"[*] Downloading page {i}/{max_pages} of book '{book_id}'")
             await page.goto(
-                f"https://app.edubase.ch/#doc/{doc_id}/{i}",
-                {"waitUntil": "networkidle0"},
+                f"https://app.edubase.ch/#doc/{book_id}/{i}", wait_until="networkidle"
             )
-            await asyncio.sleep(0.5)
-            pdf_page = io.BytesIO(await page.pdf())
+            await asyncio.sleep(0.75)
+
             # append page to the merger
+            pdf_page = io.BytesIO(await page.pdf())
             pdf.append(PdfReader(pdf_page))
+
         # save the final pdf
         print(f"[*] Creating {file_name}")
         pdf.write(file_name)
         pdf.close()
+
     except Exception as e:
-        print("[!] There was an error during download:")
+        print("[!] There was an error during download")
         print(e)
         return
 
 
 async def main(args):
-    options = {
-        "headless": (not args.show),
-    }
+    async with async_playwright() as p:
+        # custom chrome path if specified
+        launch_options = {"headless": not args.show}
+        if args.chromepath:
+            launch_options["executable_path"] = args.chromepath
 
-    # custom chrome path if specified
-    if args.chromepath != "":
-        options["executablePath"] = args.chromepath
-    try:
-        browser = await launch(options)
-        context = await browser.createIncognitoBrowserContext()
-        page = await context.newPage()
-    except Exception as e:
-        print("[!] There was an error while setting up Chrome")
-        print(e)
-        return
-
-    try:
-        # login
-        print("[*] Logging in")
-        await page.goto(
-            "https://app.edubase.ch/#promo?popup=login", {"waitUntil": "networkidle0"}
-        )
-        # webapp takes a while even after networkidle
-        await asyncio.sleep(3)
-        await page.type('input[name="login"]', args.username)
-        await page.type('input[name="password"]', args.password)
-        await asyncio.sleep(1)
-        await page.click('button[type="submit"]')
-        # wait for the doc library to load
-        await page.waitForXPath(r'//*[@id="libraryItems"]/li')
-        # use js to extract all IDs
-        all_doc_ids = await page.evaluate(
-            "new Array(...document.querySelectorAll('li.m-2.lu-library-item')).map((e) => e.getAttribute('data-last-available-version'))",
-            force_expr=True,
-        )
-    except Exception as e:
-        print("[!] There was an error during login:")
-        print(e)
-        return
-    print("[+] Login successful")
-
-    doc_ids = []
-    for doc_id in all_doc_ids:
-        # filter out "None" types
-        if doc_id != None:
-            # filter out the default ones if not specified
-            if not args.defaults and doc_id in default_docs:
-                continue
-            else:
-                doc_ids.append(doc_id)
-    print(f"[+] Got a total of {len(doc_ids)} book(s)")
-
-    # let the user select a book if not specified
-    if not args.all:
-        for doc_id in doc_ids:
-            print(f"[*] {doc_id}")
         try:
-            selection = input("[?] Which one should I download?: ")
-            if selection not in doc_ids:
-                raise SyntaxError
-        except SyntaxError:
-            print("[!] Invalid ID")
+            browser = await p.chromium.launch(**launch_options)
+            context = await browser.new_context(user_agent=user_agent)
+            page = await context.new_page()
+        except Exception as e:
+            print("[!] There was an error while setting up Chrome")
+            print(e)
             return
-        # download the book
-        await download_book(page, selection)
-        await browser.close()
-        return
-    else:
-        # user wants all books
-        for doc_id in doc_ids:
-            await download_book(page, doc_id)
-        await browser.close()
-        return
+
+        try:
+            # login
+            print("[*] Logging in")
+            await page.goto(
+                "https://app.edubase.ch/#promo?popup=login", wait_until="networkidle"
+            )
+
+            # webapp takes a while even after networkidle
+            await asyncio.sleep(3)
+            await page.fill('input[name="login"]', args.username)
+            await page.fill('input[name="password"]', args.password)
+            await asyncio.sleep(1)
+
+            await page.click('button[type="submit"]')
+            await asyncio.sleep(3)
+
+            body_text = await page.locator("body").inner_text()
+            if (
+                "An account with the credentials you entered does not exist."
+                in body_text
+            ):
+                print("[!] Invalid credentials")
+                return
+
+            print("[+] Login successful")
+
+        except Exception as e:
+            print("[!] There was an error during login")
+            print(e)
+            return
+
+        try:
+            print("[*] Searching for books")
+
+            # wait for the doc library to load
+            await page.wait_for_selector("#libraryItems li")
+            await asyncio.sleep(3)
+
+            books = []
+
+            # get all links
+            links = await page.query_selector_all("a.lu-library-item-aux")
+
+            for link in links:
+                href = await link.get_attribute("href")
+                title = await link.get_attribute("title")
+
+                if href:
+                    match = re_book_href.match(href)
+                    if match:
+                        books.append({"id": match.group(1), "title": title})
+
+            if len(books) == 0:
+                print("[!] No books found")
+                return
+
+            print(f"[+] Got a total of {len(books)} books\n")
+
+        except Exception as e:
+            print("[!] There was an error while searching for books")
+            print(e)
+            return
+
+        # let the user select a book if not specified
+        if not args.all:
+            while True:
+                for book in books:
+                    print(f"{book['title']} (ID: {book['id']})")
+                selection = input(
+                    "\n[?] Please enter the ID of the book I should download: "
+                )
+                if not any(book["id"] == selection for book in books):
+                    print("[!] Invalid book ID\n")
+                else:
+                    break
+
+            # download the book
+            await download_book(page, selection)
+            await browser.close()
+            return
+
+        else:
+            # user wants all books
+            for book in books:
+                await download_book(page, book["id"])
+            await browser.close()
+            return
 
 
 if __name__ == "__main__":
@@ -134,7 +175,6 @@ if __name__ == "__main__":
         "-c", "--chrome-path", action="store", dest="chromepath", default=""
     )
     parser.add_argument("-a", "--all", action="store_true", default=False)
-    parser.add_argument("-d", "--defaults", action="store_true", default=False)
     parser.add_argument("-s", "--show", action="store_true", default=False)
     parser.add_argument("-h", "--help", action="store_true", default=False)
     args = parser.parse_args()
@@ -148,7 +188,6 @@ Options:
 -p, --password      Password (can be left empty, script will ask)
 -c, --chrome-path   Path to the chrome/chromium binary
 -a, --all           Will download all found books
--d, --defaults      Will also include the 5 default books every account has
 -s, --show          Show the action/open browser in front
 -h, --help          Prints this text
     """
@@ -157,6 +196,8 @@ Options:
     if args.help or args.username == "":
         print(helptext)
         exit()
+
+    print("[edubasedl]")
 
     # user did not specify a password via argument, ask in interactive mode
     if args.password == "":
