@@ -3,7 +3,7 @@ import re
 import os
 import asyncio
 import argparse
-from pypdf import PdfMerger, PdfReader
+from pypdf import PdfWriter, PdfReader
 from playwright.async_api import async_playwright
 
 # regex to extract the book IDs
@@ -20,7 +20,7 @@ async def download_book(page, book_id):
             print(f"[-] {file_name} already exists, skipping")
             return
 
-        pdf = PdfMerger()
+        pdf = PdfWriter()
 
         # open the book and use js to get the maximum pages
         await page.goto(
@@ -46,9 +46,10 @@ async def download_book(page, book_id):
             )
             await asyncio.sleep(0.75)
 
-            # append page to the merger
+            # append page to the writer
             pdf_page = io.BytesIO(await page.pdf())
-            pdf.append(PdfReader(pdf_page))
+            pdf_reader = PdfReader(pdf_page)
+            pdf.add_page(pdf_reader.pages[0])
 
         # save the final pdf
         print(f"[*] Creating {file_name}")
@@ -208,4 +209,6 @@ Options:
             exit()
 
     # start the main loop
-    asyncio.get_event_loop().run_until_complete(main(args))
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    asyncio.run(main(args))
