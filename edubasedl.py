@@ -12,7 +12,7 @@ re_book_href = re.compile(r"#doc/(\d+)")
 user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6567.90 Safari/537.36"
 
 
-async def download_book(page, book_id):
+async def download_book(page, book_id, delay):
     file_name = f"{book_id}.pdf"
     try:
         # skip if pdf exists
@@ -24,9 +24,10 @@ async def download_book(page, book_id):
 
         # open the book and use js to get the maximum pages
         await page.goto(
-            f"https://app.edubase.ch/#doc/{book_id}/1", wait_until="networkidle"
+            f"https://app.edubase.ch/#doc/{book_id}/1", wait_until="domcontentloaded"
         )
-        await asyncio.sleep(1)
+        await page.wait_for_load_state("networkidle")
+        await asyncio.sleep(delay)
 
         max_pages_raw = await page.evaluate(
             """() => {
@@ -42,9 +43,10 @@ async def download_book(page, book_id):
         for i in range(1, max_pages + 1):
             print(f"[*] Downloading page {i}/{max_pages} of book '{book_id}'")
             await page.goto(
-                f"https://app.edubase.ch/#doc/{book_id}/{i}", wait_until="networkidle"
+                f"https://app.edubase.ch/#doc/{book_id}/{i}", wait_until="domcontentloaded"
             )
-            await asyncio.sleep(0.75)
+            await page.wait_for_load_state("networkidle")
+            await asyncio.sleep(delay)
 
             # append page to the writer
             pdf_page = io.BytesIO(await page.pdf())
@@ -155,7 +157,7 @@ async def main(args):
                     break
 
             # download the book
-            await download_book(page, selection)
+            await download_book(page, selection, args.delay)
             await browser.close()
             return
 
@@ -175,6 +177,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-c", "--chrome-path", action="store", dest="chromepath", default=""
     )
+    parser.add_argument("-d", "--delay", action="store", dest="delay", default=0.75)
     parser.add_argument("-a", "--all", action="store_true", default=False)
     parser.add_argument("-s", "--show", action="store_true", default=False)
     parser.add_argument("-h", "--help", action="store_true", default=False)
