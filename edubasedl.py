@@ -177,7 +177,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-c", "--chrome-path", action="store", dest="chromepath", default=""
     )
-    parser.add_argument("-d", "--delay", action="store", dest="delay", default=0.75)
+    parser.add_argument("-d", "--delay", action="store", dest="delay", default=0.75, type=float)
     parser.add_argument("-a", "--all", action="store_true", default=False)
     parser.add_argument("-s", "--show", action="store_true", default=False)
     parser.add_argument("-h", "--help", action="store_true", default=False)
