@@ -11,6 +11,18 @@ re_book_href = re.compile(r"#doc/(\d+)")
 # user agent for the headless browser
 user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6567.90 Safari/537.36"
 
+# css to align background with content
+print_css = """
+@media print {
+    .doc-page .lu-page-background-image {
+        height: auto !important;
+        max-height: 100%;
+        width: auto !important;
+        max-width: 100%;
+    }
+}
+"""
+
 
 async def download_book(page, book_id):
     file_name = f"{book_id}.pdf"
@@ -37,6 +49,10 @@ async def download_book(page, book_id):
 
         # remove the slash + whitespace
         max_pages = int(max_pages_raw.replace("/ ", ""))
+
+        # inject css to align background image
+        await page.add_style_tag(content=print_css)
+        await page.emulate_media(media="print")
 
         # download each page into memory
         for i in range(1, max_pages + 1):
