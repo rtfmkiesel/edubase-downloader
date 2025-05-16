@@ -94,11 +94,10 @@ async def main(args):
             await page.click('button[type="submit"]')
             await asyncio.sleep(3)
 
-            body_text = await page.locator("body").inner_text()
-            if (
-                "An account with the credentials you entered does not exist."
-                in body_text
-            ):
+            body = page.locator("body")
+            is_logged_in = await body.get_attribute('data-reader-logged-in')
+
+            if is_logged_in != 'true':
                 print("[!] Invalid credentials")
                 return
 
