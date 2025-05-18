@@ -13,14 +13,15 @@ pip install -r requirements.txt
 usage: edubasedl.py [OPTIONS]
 
 Required:
--u, --username      Username (Email) of Edubase account
+-u, --username           Username (Email) of Edubase account
 
 Options:
--p, --password      Password (can be left empty, script will ask)
--c, --chrome-path   Path to the chrome/chromium binary
--a, --all           Will download all found books
--s, --show          Show the action/open browser in front
--h, --help          Prints this text
+-p, --password           Password (can be left empty, script will ask)
+-c, --chrome-path        Path to the chrome/chromium binary
+-a, --all                Will download all found books
+-s, --show               Show the action/open browser in front
+-h, --help               Prints this text
+-d, --disable-css-patch  Disable print.css modification to prevent shifted backgrounds
 ```
 
 ## OCR
