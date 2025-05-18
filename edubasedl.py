@@ -11,6 +11,18 @@ re_book_href = re.compile(r"#doc/(\d+)")
 # user agent for the headless browser
 user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6567.90 Safari/537.36"
 
+# css to align background with content
+print_css = """
+@media print {
+    .doc-page .lu-page-background-image {
+        height: auto !important;
+        max-height: 100%;
+        width: auto !important;
+        max-width: 100%;
+    }
+}
+"""
+
 
 async def download_book(page, book_id):
     file_name = f"{book_id}.pdf"
@@ -37,6 +49,12 @@ async def download_book(page, book_id):
 
         # remove the slash + whitespace
         max_pages = int(max_pages_raw.replace("/ ", ""))
+
+        # inject css to align background image
+        if not args.disable_css_patch:
+            print('[*] Patching print css')
+            await page.add_style_tag(content=print_css)
+            await page.emulate_media(media="print")
 
         # download each page into memory
         for i in range(1, max_pages + 1):
@@ -177,19 +195,21 @@ if __name__ == "__main__":
     parser.add_argument("-a", "--all", action="store_true", default=False)
     parser.add_argument("-s", "--show", action="store_true", default=False)
     parser.add_argument("-h", "--help", action="store_true", default=False)
+    parser.add_argument("-d", "--disable-css-patch", action="store_true", default=False)
     args = parser.parse_args()
 
     helptext = """usage: edubasedl.py [OPTIONS]
 
 Required:
--u, --username      Username (Email) of Edubase account
+-u, --username           Username (Email) of Edubase account
 
 Options:
--p, --password      Password (can be left empty, script will ask)
--c, --chrome-path   Path to the chrome/chromium binary
--a, --all           Will download all found books
--s, --show          Show the action/open browser in front
--h, --help          Prints this text
+-p, --password           Password (can be left empty, script will ask)
+-c, --chrome-path        Path to the chrome/chromium binary
+-a, --all                Will download all found books
+-s, --show               Show the action/open browser in front
+-h, --help               Prints this text
+-d, --disable-css-patch  Disable print.css modification to prevent shifted backgrounds
     """
 
     # show help
