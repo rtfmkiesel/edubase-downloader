@@ -131,6 +131,12 @@ async def main(args):
 
             # wait for the doc library to load
             await page.wait_for_selector("#libraryItems li")
+            await asyncio.sleep(1)
+
+            # scroll to load all books
+            viewport_height = await page.evaluate("window.innerHeight")
+            for _ in range(100):
+                await page.mouse.wheel(0, viewport_height)
             await asyncio.sleep(3)
 
             books = []
