@@ -62,7 +62,7 @@ async def download_book(page, book_id):
             await page.goto(
                 f"https://app.edubase.ch/#doc/{book_id}/{i}", wait_until="networkidle"
             )
-            await asyncio.sleep(0.75)
+            await asyncio.sleep(args.page_delay)
 
             # append page to the writer
             pdf_page = io.BytesIO(await page.pdf())
@@ -202,6 +202,7 @@ if __name__ == "__main__":
     parser.add_argument("-s", "--show", action="store_true", default=False)
     parser.add_argument("-h", "--help", action="store_true", default=False)
     parser.add_argument("-d", "--disable-css-patch", action="store_true", default=False)
+    parser.add_argument("-D", "--page-delay", action="store", default=0.75, type=int)
     args = parser.parse_args()
 
     helptext = """usage: edubasedl.py [OPTIONS]
@@ -216,6 +217,7 @@ Options:
 -s, --show               Show the action/open browser in front
 -h, --help               Prints this text
 -d, --disable-css-patch  Disable print.css modification to prevent shifted backgrounds
+-D, --page-delay         How long to wait for a book page to render. (default 0.75s)
     """
 
     # show help
