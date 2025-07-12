@@ -20,9 +20,11 @@ print_css = """
         width: auto !important;
         max-width: 100%;
     }
+    .doc-page-wrapper {
+        border: 0 !important;
+    }
 }
 """
-
 
 async def download_book(page, book_id):
     file_name = f"{book_id}.pdf"
@@ -195,9 +197,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("-u", "--username", action="store", dest="username", default="")
     parser.add_argument("-p", "--password", action="store", dest="password", default="")
-    parser.add_argument(
-        "-c", "--chrome-path", action="store", dest="chromepath", default=""
-    )
+    parser.add_argument("-c", "--chrome-path", action="store", dest="chromepath", default="")
     parser.add_argument("-a", "--all", action="store_true", default=False)
     parser.add_argument("-s", "--show", action="store_true", default=False)
     parser.add_argument("-h", "--help", action="store_true", default=False)
