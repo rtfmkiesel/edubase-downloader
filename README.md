@@ -22,6 +22,8 @@ Options:
 -s, --show               Show the action/open browser in front
 -h, --help               Prints this text
 -d, --disable-css-patch  Disable print.css modification to prevent shifted backgrounds
+-D, --page-delay         How long to wait for a book page to render. (default 0.75s)
+-S, --screenshot         Use a screenshot instead of printing the page (BETA)
 ```
 
 ## OCR
