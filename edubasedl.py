@@ -5,7 +5,6 @@ import asyncio
 import argparse
 from pypdf import PdfWriter, PdfReader
 from playwright.async_api import async_playwright
-from PIL import Image
 
 # regex to extract the book IDs
 re_book_href = re.compile(r"#doc/(\d+)")
@@ -26,7 +25,6 @@ print_css = """
     }
 }
 """
-
 
 async def download_book(page, book_id):
     file_name = f"{book_id}.pdf"
@@ -52,11 +50,11 @@ async def download_book(page, book_id):
         )
 
         # remove the slash + whitespace
-        max_pages = 5
+        max_pages = int(max_pages_raw.replace("/ ", ""))
 
         # inject css to align background image
         if not args.disable_css_patch:
-            print("[*] Patching print css")
+            print('[*] Patching print css')
             await page.add_style_tag(content=print_css)
             await page.emulate_media(media="print")
 
@@ -68,30 +66,10 @@ async def download_book(page, book_id):
             )
             await asyncio.sleep(args.page_delay)
 
-            if not args.screenshot:
-                # use classic way using page.pdf()
-                pdf_page = io.BytesIO(await page.pdf())
-                pdf_reader = PdfReader(pdf_page)
-                pdf.add_page(pdf_reader.pages[0])
-            else:
-                # use screenshot of element
-                await page.set_viewport_size({"width": 3508, "height": 4961})
-
-                image_bytes = await page.locator(
-                    "[data-pageid='dummy'].lu-doc-pages"
-                ).screenshot(
-                    type="png",
-                    scale="css",
-                )
-
-                image = Image.open(io.BytesIO(image_bytes))
-
-                image_pdf = io.BytesIO()
-                image.save(image_pdf, "PDF", resolution=300.0, quality=100)
-                image_pdf.seek(0)
-
-                image_reader = PdfReader(image_pdf)
-                pdf.add_page(image_reader.pages[0])
+            # append page to the writer
+            pdf_page = io.BytesIO(await page.pdf())
+            pdf_reader = PdfReader(pdf_page)
+            pdf.add_page(pdf_reader.pages[0])
 
         # save the final pdf
         print(f"[*] Creating {file_name}")
@@ -137,9 +115,9 @@ async def main(args):
             await asyncio.sleep(3)
 
             body = page.locator("body")
-            is_logged_in = await body.get_attribute("data-reader-logged-in")
+            is_logged_in = await body.get_attribute('data-reader-logged-in')
 
-            if is_logged_in != "true":
+            if is_logged_in != 'true':
                 print("[!] Invalid credentials")
                 return
 
@@ -219,15 +197,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("-u", "--username", action="store", dest="username", default="")
     parser.add_argument("-p", "--password", action="store", dest="password", default="")
-    parser.add_argument(
-        "-c", "--chrome-path", action="store", dest="chromepath", default=""
-    )
+    parser.add_argument("-c", "--chrome-path", action="store", dest="chromepath", default="")
     parser.add_argument("-a", "--all", action="store_true", default=False)
     parser.add_argument("-s", "--show", action="store_true", default=False)
     parser.add_argument("-h", "--help", action="store_true", default=False)
     parser.add_argument("-d", "--disable-css-patch", action="store_true", default=False)
     parser.add_argument("-D", "--page-delay", action="store", default=0.75, type=int)
-    parser.add_argument("-S", "--screenshot", action="store_true", default=False)
     args = parser.parse_args()
 
     helptext = """usage: edubasedl.py [OPTIONS]
@@ -243,7 +218,6 @@ Options:
 -h, --help               Prints this text
 -d, --disable-css-patch  Disable print.css modification to prevent shifted backgrounds
 -D, --page-delay         How long to wait for a book page to render. (default 0.75s)
--S, --screenshot         Use a screenshot instead of printing the page (BETA)
     """
 
     # show help
